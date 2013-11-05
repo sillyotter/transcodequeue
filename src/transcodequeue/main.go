@@ -218,6 +218,7 @@ func main() {
 		log.Println("Creating Server")
 
 		defer removePidFile(pidFile)
+
 		err = createTranscodeServer(pidFile, unixSocket)
 		if err != nil {
 			log.Panicln(err.Error())
