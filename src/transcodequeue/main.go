@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"net/rpc"
 	"os"
 	"os/exec"
@@ -70,6 +69,7 @@ func (this *TranscodeQueue) DoTranscode(file string, reply *bool) error {
 
 func performTranscode(infile, outfile string, isDone chan<- error) {
 
+	//transcodeCommand := exec.Command("/bin/sleep", "10")
 	transcodeCommand := exec.Command(
 		"/usr/local/bin/HandBrakeCLI",
 		"-O", "-I",
@@ -91,7 +91,9 @@ func performTranscode(infile, outfile string, isDone chan<- error) {
 		"-i", infile,
 		"-o", outfile)
 
-	transferCommand := exec.Command("/usr/bin/scp", "-B", "-C", "-q", outfile,
+	//transferCommand := exec.Command("/bin/sleep", "5")
+	transferCommand := exec.Command(
+		"/usr/bin/scp", "-B", "-C", "-q", outfile,
 		"guy@mediaserver.local:/srv/Media/Movies/0\\ -\\ Inbox/TV")
 
 	log.Println("Performing transcode of", infile)
@@ -110,7 +112,8 @@ func performTranscode(infile, outfile string, isDone chan<- error) {
 	err = transferCommand.Run()
 	if err == nil {
 		os.Remove(infile)
-		//os.Remove(outfile) // leave commented out until im sure i understand the scp problem
+		//os.Remove(outfile)
+		// leave commented out until im sure i understand the scp problem
 	} else {
 		log.Println(err.Error())
 		isDone <- err
@@ -123,7 +126,7 @@ func performTranscode(infile, outfile string, isDone chan<- error) {
 
 func requestTranscode(infile, unixSocket string) (reply bool, err error) {
 
-	client, err := rpc.DialHTTPPath("unix", unixSocket, "/transcode")
+	client, err := rpc.Dial("unix", unixSocket)
 	if err != nil {
 		return
 	}
@@ -133,7 +136,7 @@ func requestTranscode(infile, unixSocket string) (reply bool, err error) {
 
 func createTranscodeServer(pidfile *os.File, unixSocket string) error {
 
-	sigc := make(chan os.Signal, 1)
+	sigc := make(chan os.Signal, 10)
 	signal.Notify(sigc,
 		syscall.SIGHUP,
 		syscall.SIGINT,
@@ -144,7 +147,6 @@ func createTranscodeServer(pidfile *os.File, unixSocket string) error {
 	q := NewTranscodeQueue()
 	server := rpc.NewServer()
 	server.Register(q)
-	server.HandleHTTP("/transcode", "/transcode-debug")
 
 	l, err := net.Listen("unix", unixSocket)
 	if err != nil {
@@ -153,7 +155,7 @@ func createTranscodeServer(pidfile *os.File, unixSocket string) error {
 
 	defer l.Close()
 
-	go http.Serve(l, nil)
+	go server.Accept(l)
 
 	isDone := make(chan error)
 	rxp, err := regexp.Compile(`(.*)(\.mpg)$`)
