@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -67,7 +68,36 @@ func (this *TranscodeQueue) DoTranscode(file string, reply *bool) error {
 	return nil
 }
 
-func performTranscode(infile, outfile string, isDone chan<- error) {
+func runCommand(cmd *exec.Cmd, die <-chan os.Signal) (bool, error) {
+
+	isDone := make(chan error)
+	if err := cmd.Start(); err != nil {
+		return false, err
+	}
+
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			isDone <- err
+		}
+		isDone <- nil
+	}()
+
+	select {
+	case err := <-isDone:
+		return true, err
+	case <-die:
+		log.Println("Killing process")
+		if err := cmd.Process.Kill(); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+}
+
+var wasCanceled error = errors.New("Was Canceled")
+
+func performTranscode(infile, outfile string, isDone chan<- error, sigc <-chan os.Signal) {
 
 	//transcodeCommand := exec.Command("/bin/sleep", "10")
 	transcodeCommand := exec.Command(
@@ -99,24 +129,35 @@ func performTranscode(infile, outfile string, isDone chan<- error) {
 	log.Println("Performing transcode of", infile)
 	log.Println("Writing file", outfile)
 
-	err := transcodeCommand.Run()
+	done, err := runCommand(transcodeCommand, sigc)
+
 	if err != nil {
 		log.Println(err.Error())
 		isDone <- err
+		return
+	}
+	if !done {
+		isDone <- wasCanceled
 		return
 	}
 
 	log.Println("Done transcoding file")
 	log.Println("Transfering file to server")
 
-	err = transferCommand.Run()
-	if err == nil {
+	done, err = runCommand(transferCommand, sigc)
+
+	if err == nil && done {
 		os.Remove(infile)
 		//os.Remove(outfile)
 		// leave commented out until im sure i understand the scp problem
 	} else {
-		log.Println(err.Error())
-		isDone <- err
+		if err != nil {
+			log.Println(err.Error())
+			isDone <- err
+
+		} else {
+			isDone <- wasCanceled
+		}
 		return
 	}
 
@@ -168,16 +209,12 @@ func createTranscodeServer(pidfile *os.File, unixSocket string) error {
 
 	for {
 		select {
-		case <-sigc:
-			return nil
 		case req := <-q.Requests:
 
 			outfile := rxp.ReplaceAllString(req, "$1.m4v")
-			go performTranscode(req, outfile, isDone)
+			go performTranscode(req, outfile, isDone, sigc)
 
 			select {
-			case <-sigc:
-				return nil
 			case e := <-isDone:
 				if e != nil {
 					return e
@@ -223,7 +260,7 @@ func main() {
 
 		err = createTranscodeServer(pidFile, unixSocket)
 		if err != nil {
-			log.Panicln(err.Error())
+			log.Println(err.Error())
 		}
 	}
 
