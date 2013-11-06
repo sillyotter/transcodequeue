@@ -194,7 +194,7 @@ func createTranscodeServer(pidfile *os.File, unixSocket string) error {
 		return err
 	}
 
-	//defer l.Close()
+	defer l.Close()
 
 	go server.Accept(l)
 
