@@ -1,5 +1,41 @@
 package main
 
+/*
+#cgo CFLAGS: -I/usr/include
+#cgo LDFLAGS: -framework IOKit -framework CoreFoundation
+#include <stdlib.h>
+#include <IOKit/pwr_mgt/IOPMLib.h>
+
+// kIOPMAssertionTypeNoDisplaySleep prevents display sleep,
+// kIOPMAssertionTypeNoIdleSleep prevents idle sleep
+
+// reasonForActivity is a descriptive string used by the system whenever it needs
+// to tell the user why the system is not sleeping. For example,
+// "Mail Compacting Mailboxes" would be a useful string.
+
+long PreventSleep()
+{
+	// NOTE: IOPMAssertionCreateWithName limits the string to 128 characters.
+	CFStringRef reasonForActivity= CFSTR("Encoding");
+
+	IOPMAssertionID assertionID;
+	IOReturn success = IOPMAssertionCreateWithName(kIOPMAssertionTypeNoIdleSleep,
+	                                    kIOPMAssertionLevelOn, reasonForActivity, &assertionID);
+	if (success == kIOReturnSuccess)
+	{
+		return (int)assertionID;
+	}
+	return -1;
+}
+
+void AllowSleep(long assert)
+{
+	IOPMAssertionID assertionID = assert;
+	IOPMAssertionRelease(assertionID);
+}
+*/
+import "C"
+
 import (
 	"errors"
 	"fmt"
@@ -227,6 +263,9 @@ func createTranscodeServer(pidfile *os.File, unixSocket string) error {
 }
 
 func main() {
+
+	sleepId := C.PreventSleep()
+	defer C.AllowSleep(sleepId)
 
 	if len(os.Args) != 2 {
 		return
