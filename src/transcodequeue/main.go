@@ -186,7 +186,7 @@ func performTranscode(infile, outfile string, isDone chan<- error, sigc <-chan o
 
 	if err == nil && done {
 		os.Remove(infile)
-		//os.Remove(outfile)
+		os.Remove(outfile)
 		// leave commented out until im sure i understand the scp problem
 	} else {
 		if err != nil {
