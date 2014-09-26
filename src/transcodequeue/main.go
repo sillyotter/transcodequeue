@@ -136,7 +136,6 @@ var wasCanceled error = errors.New("Was Canceled")
 func performTranscode(infile, outfile string, isDone chan<- error, sigc <-chan os.Signal) {
 	//infile = fmt.Sprintf("%q", infile)
 	//outfile = fmt.Sprintf("%q", outfile)
-
 	//transcodeCommand := exec.Command("/bin/sleep", "10")
 	transcodeCommand := exec.Command(
 		"/usr/local/bin/HandBrakeCLI",
