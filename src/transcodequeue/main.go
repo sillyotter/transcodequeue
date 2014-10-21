@@ -161,7 +161,7 @@ func performTranscode(infile, outfile string, isDone chan<- error, sigc <-chan o
 	//transferCommand := exec.Command("/bin/sleep", "5")
 	transferCommand := exec.Command(
 		"/usr/bin/scp", "-B", "-C", "-q", outfile,
-		"guy@mediaserver.local:/srv/Media/Movies/0\\ -\\ Inbox/TV")
+		"MediaServer:/TV")
 
 	log.Println("Performing transcode of", infile)
 	log.Println("Writing file", outfile)
